@@ -1,0 +1,141 @@
+# Practical Machine Learning Course Project.
+
+## Prediction of Weight Lifting Exercise Behavioural Patterns
+
+#### - Kayode Ayankoya (January, 2015)
+
+Studies of behavioral patterns during physical exercise is a very important field that have immense health benefits and applications sports training and profession. The use of devices that collect data during exercises make it possible to identify, measure and scientifically predict behaviorial patterns. This project uses the data collected by Velloso et. al. (2013) on weight lifting exercises of 6 participants to predict the behaviorial patterns (the manner in which exercises) during exercises.
+
+```{r}
+library(caret)
+library(randomForest)
+library(rattle)
+library(rpart.plot)
+library(ggplot2)
+
+```
+
+
+
+### Data processing
+
+The data which is splitted into the training and testing sets is available at:
+
+-  Training sets - https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+-  Test sets - https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+They are loaded into the R work enviroment as shown below.
+
+```{r}
+
+trainingUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+#load and clean the training dataset
+trainingset <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
+
+#load and clean the test dataset
+testset <- read.csv('pml-testing.csv', na.strings=c("NA","#DIV/0!", ""))
+
+#The first seven columns of both datasets are metadata and not relevant to this study. Hence they are
+#excluded.
+
+trainingset   <-trainingset[,-c(1:7)]
+testset   <-testset[,-c(1:7)]
+
+# Furthermore, a preview of both datasets shows that a lot of the columns contain missing values only that are meant for descriptive statistics for each variable. These colums are removed with these codes.
+
+trainingset <- trainingset[, -grep("^var_", colnames(trainingset))]
+trainingset <- trainingset[, -grep("^skewness_", colnames(trainingset))]
+trainingset <- trainingset[, -grep("^kurtosis_", colnames(trainingset))]
+trainingset <- trainingset[, -grep("^max_", colnames(trainingset))]
+trainingset <- trainingset[, -grep("^min_", colnames(trainingset))]
+trainingset <- trainingset[, -grep("^avg_", colnames(trainingset))]
+trainingset <- trainingset[, -grep("^amplitude_", colnames(trainingset))]
+trainingset <- trainingset[, -grep("^stddev_", colnames(trainingset))]
+
+```
+
+
+### Study design and Cross validation
+
+For the purpose of cross validation this study will only use the test dataset for validation at the end of the analysis. But will create a sub-testing set from training set for cross validation and feature selection. This is achived below, in order to ensure reproducibility of this project a seed will be set at the before splitting the data.
+
+```{r}
+set.seed(1234)
+inTrain <- createDataPartition(y=trainingset$classe, p=0.6, list=FALSE)
+
+training <- trainingset[inTrain,]
+testing <- trainingset[-inTrain,]
+
+```
+
+
+### Modelling and Predictions
+The first classification tree and Random Forest approach will be used to train 2 different models that will be compared later in this project.
+
+#### Classification model
+```{r}
+## Create model
+modFit <- rpart(classe ~ ., data=training, method="class")
+
+## Display the Decision Tree
+fancyRpartPlot(modFit)
+
+## Predict new values using the sub Testing set created from the original training set 
+pred <- predict(modFit, newdata=testing, type="class")
+
+## Calculates a cross-tabulation of observed and predicted classes with associated statistics
+confusionMatrix(pred, testing$classe)
+
+```
+
+#### Rain Forest model
+
+```{r}
+##modFit <- train(training$classe ~ ., data=training, method="rf", type="class")
+modFit1 <- randomForest(training$classe ~ . , data=training, type="class")
+##modFit
+
+## Display the Decision Tree
+##fancyRpartPlot(modFit$finalModel)
+##fancyRpartPlot(modFit1)
+
+## Predict new values using the sub Testing set created from the original training set 
+pred1 <- predict(modFit1, testing, type="class")
+
+## Calculates a cross-tabulation of observed and predicted classes with associated statistics
+confusionMatrix(pred1, testing$classe)
+
+```
+
+The result from the two models show that the Rain Forest predictions are more accurate than the decision tree predictions. The Rain Forest model provides an Accuracy of 99.24% with a confidence interval between 99.02% as lower limit and 99.42% as upper limit.  This suggest that the out-of-sample error can be fairly estimated at a maximum of 5% with 40% of the training data used for cross validation.
+
+Hence the RainForest model will be applied to the testing dataset provided by on the course page. With an expected 5% out of sample error, it is expected that the test set with 20 predictions will produce a maximum of 1 error, based on the cross validation that has been performed.
+
+## Apply RainForest model on Testing dataset
+
+```{r}
+
+pred2 <- predict(modFit1, testset, type="class")
+
+print(pred2)
+```
+
+These predictions produced a 100% accuracy when checked with the prediction assignment submission page.
+
+
+```{r echo=FALSE}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(pred2)
+
+
+```
